@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import io 
-import requests # GitHub 파일 다운로드를 위해 requests 모듈 추가
+import requests # GitHub 파일 다운로드 및 요청을 위해 requests 모듈 추가
 
 # eeg_analyzer.py 파일에서 핵심 분석 함수와 상수를 가져옵니다.
 # (분석 로직 파일에서 SKIP_SECONDS, BUFFER_LENGTH 등을 새로운 값으로 정의했다고 가정합니다.)
@@ -35,19 +35,28 @@ SAMPLE_CSV_URL = "https://raw.githubusercontent.com/MikeOh-SQ/neurotree/main/sam
 col_download, col_apply = st.columns([1, 1])
 
 with col_download:
-    st.markdown(f"""
-        <a href="{SAMPLE_CSV_URL}" download="sample.csv">
-            <button style="background-color: #4CAF50; color: white; padding: 10px 24px; border: none; border-radius: 8px; cursor: pointer;">
-                샘플 CSV 파일 다운로드 (GitHub)
-            </button>
-        </a>
-        """, unsafe_allow_html=True)
+    # --- 버그 수정 1: st.download_button 사용 ---
+    try:
+        sample_response = requests.get(SAMPLE_CSV_URL)
+        if sample_response.status_code == 200:
+            st.download_button(
+                label="샘플 CSV 파일 다운로드 (GitHub)",
+                data=sample_response.content, # 응답 내용을 바로 파일 데이터로 사용
+                file_name="sample_eeg_data.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("샘플 파일 다운로드 링크를 가져올 수 없습니다.")
+    except Exception:
+        st.warning("샘플 파일 다운로드 기능을 초기화할 수 없습니다.")
+
 
 with col_apply:
     # 샘플 파일 적용 버튼 (state를 사용하여 플로우 제어)
     if st.button("샘플 파일 적용 및 분석 시작"):
         st.session_state['use_sample'] = True
-        st.experimental_rerun() # 버튼 클릭 시 페이지를 재실행하여 분석 시작
+        # --- 버그 수정 2: st.experimental_rerun() -> st.rerun()으로 변경 ---
+        st.rerun() # 버튼 클릭 시 페이지를 재실행하여 분석 시작
 
 # =========================================================
 # UI 섹션 2: 파일 업로드 및 CSV 형식 설명
@@ -76,6 +85,8 @@ file_to_analyze = None
 if st.session_state.get('use_sample', False):
     # 샘플 파일 적용 모드
     try:
+        # requests.get(SAMPLE_CSV_URL)은 이미 위 다운로드 버튼에서 수행되었으므로 재사용하거나,
+        # 안정성을 위해 여기서 다시 요청
         response = requests.get(SAMPLE_CSV_URL)
         if response.status_code == 200:
             # StringIO로 변환하여 파일 객체처럼 사용
@@ -205,4 +216,4 @@ if st.session_state.get('ready_to_analyze', False) or st.session_state.get('use_
     if st.button("초기 상태로 돌아가기"):
         st.session_state['use_sample'] = False
         st.session_state['ready_to_analyze'] = False
-        st.experimental_rerun()
+        st.rerun()
