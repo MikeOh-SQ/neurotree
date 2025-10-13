@@ -19,7 +19,7 @@ HPF_ORDER = 4
 
 # 분석할 뇌파 밴드 정의 (주파수 범위)
 EEG_BANDS = {
-    'Delta': (1, 4),
+    'Delta': (2, 4),
     'Theta': (4, 8),
     'Alpha': (8, 13),
     'Beta': (13, 30),
@@ -123,3 +123,4 @@ def analyze_eeg_rhythms(data_5min_chunks: list):
         all_results[channel_name] = channel_rhythm_map
         
     return all_results
+
