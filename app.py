@@ -29,7 +29,8 @@ st.markdown(f"EEG 원시 데이터를 업로드하여 **앞 15초를 제외한 1
 # =========================================================
 st.subheader("샘플 파일 사용")
 
-SAMPLE_CSV_URL = "https://raw.githubusercontent.com/MikeOh-SQ/neurotree/blob/main/sample.csv" 
+# 제공받은 GitHub 링크의 원본(RAW) URL로 수정
+SAMPLE_CSV_URL = "https://raw.githubusercontent.com/MikeOh-SQ/neurotree/main/sample.csv" 
 
 col_download, col_apply = st.columns([1, 1])
 
@@ -77,6 +78,7 @@ if st.session_state.get('use_sample', False):
     try:
         response = requests.get(SAMPLE_CSV_URL)
         if response.status_code == 200:
+            # StringIO로 변환하여 파일 객체처럼 사용
             file_to_analyze = io.StringIO(response.content.decode('utf-8'))
             st.info("GitHub 샘플 파일이 성공적으로 로드되었습니다.")
             # 샘플 사용 상태를 유지하면서 분석 로직으로 진입
@@ -109,12 +111,13 @@ if st.session_state.get('ready_to_analyze', False) and file_to_analyze is not No
         with st.spinner('데이터 파싱 및 전처리 중입니다...'):
             
             # Pandas로 파일 로드 (헤더 포함)
+            # file_to_analyze는 이제 업로드된 파일 또는 StringIO 객체
             df = pd.read_csv(file_to_analyze)
             
             # 'osc_address'가 'eeg'인 행만 필터링하고, ACC 데이터와 NaN 값 제거
             eeg_df = df[df['osc_address'].str.contains('/eeg', na=False)].copy()
             
-            # 파싱 함수 정의 (내부 함수로 유지)
+            # 파싱 함수 정의 
             def parse_eeg_string(eeg_str):
                 # 큰따옴표 제거 후 쉼표로 분리
                 values = eeg_str.strip('"').split(',')
@@ -149,11 +152,11 @@ if st.session_state.get('ready_to_analyze', False) and file_to_analyze is not No
         # 필요한 데이터 범위 슬라이싱
         data_to_analyze = raw_data[start_sample:end_sample, :]
         
-        # 재참조 수행
+        # 재참조 수행 (eeg_analyzer.py에 정의된 함수 사용)
         eeg_chunks_corrected = preprocess_and_reference(data_to_analyze)
 
 
-        # 3. 뇌파 리듬 계산
+        # 3. 뇌파 리듬 계산 (eeg_analyzer.py에 정의된 함수 사용)
         with st.spinner(f'뇌파 점유율을 분석 중입니다 ({SKIP_DURATION}초 스킵 후 1분 데이터)...'):
             rhythm_results = analyze_eeg_rhythms(eeg_chunks_corrected)
         
@@ -203,4 +206,3 @@ if st.session_state.get('ready_to_analyze', False) or st.session_state.get('use_
         st.session_state['use_sample'] = False
         st.session_state['ready_to_analyze'] = False
         st.experimental_rerun()
-
