@@ -1,4 +1,4 @@
-# 🎄 EEG 크리스마스 트리 분석기 (Muse Rhythms Xmas Tree Analyzer)
+# 🎄 EEG 크리스마스 트리 분석기 (Neurotree)
 
 이 프로젝트는 Muse 2 또는 유사 기기에서 수집된 EEG 데이터를 분석하여, 뇌파 리듬의 평균 점유율에 따라 **동적으로 변화하는 크리스마스 트리 이미지**를 생성하는 웹 애플리케이션입니다.
 
@@ -31,7 +31,9 @@ pip install -r requirements.txt
 프로젝트는 다음 세 파일로 구성되어야 합니다.
 
 ```
-eeg_xmas_tree_app/├── app.py              # Streamlit UI 및 분석 실행 파일├── eeg_analyzer.py     # 분석 핵심 로직 (재참조, FFT, PSD 계산)└── requirements.txt    # 의존성 목록
+neurotree/├── app.py              # Streamlit UI 및 분석 실행 파일
+                  ├── eeg_analyzer.py     # 분석 핵심 로직 (재참조, FFT, PSD 계산)
+                  └── requirements.txt    # 의존성 목록
 ```
 
 ### 3. 로컬에서 앱 실행
@@ -75,3 +77,4 @@ streamlit run app.py
 5. **"Deploy!"** 버튼을 누르면 자동으로 앱이 빌드되어 실행됩니다.
 
 **라이선스:** 이 프로젝트는 [MIT License](https://www.google.com/search?q=LICENSE "null")를 따릅니다
+
