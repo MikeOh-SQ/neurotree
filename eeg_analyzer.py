@@ -3,24 +3,27 @@ from scipy.signal import butter, lfilter, lfilter_zi
 
 # ============== 설정 상수 ==============
 SAMPLING_RATE = 256
-ANALYSIS_DURATION_MINUTES = 1 # 1분으로 변경
-BUFFER_LENGTH = ANALYSIS_DURATION_MINUTES * 60 * SAMPLING_RATE # 1분 분량 샘플 수 (15360)
+ANALYSIS_DURATION_MINUTES = 1 
+BUFFER_LENGTH = ANALYSIS_DURATION_MINUTES * 60 * SAMPLING_RATE
 ANALYSIS_CHANNELS = 2 
 ANALYSIS_CHANNEL_NAMES = ['AF7 (L)', 'AF8 (R)']
-SKIP_SECONDS = 15 # app.py에서 사용되지만, 여기에도 정의하여 일관성 유지
+SKIP_SECONDS = 15
 START_INDEX = SKIP_SECONDS * SAMPLING_RATE
 
 # **********************************************
-# --- 필터링 상수 추가 ---
-# 0.5Hz 하이패스 필터를 적용하여 DC 오프셋 및 느린 드리프트 제거
+# --- 필터링 상수 수정/추가 ---
 HPF_CUTOFF = 0.5
 HPF_ORDER = 4
+# 50Hz에서 45Hz로 LPF를 조정하여 감마파 상단 EMG 잡음 제거 강화
+LPF_CUTOFF = 45.0 
+LPF_ORDER = 4
 # **********************************************
 
 # 분석할 뇌파 밴드 정의 (주파수 범위)
 EEG_BANDS = {
-    'Delta': (3, 4),
-    'Theta': (4, 8),
+    # 델타파 대역은 3Hz부터 시작하도록 유지
+    'Delta': (3.0, 4), 
+    'Theta': (4.0, 8), 
     'Alpha': (8, 13),
     'Beta': (13, 30),
     'Gamma': (30, 45), 
@@ -28,93 +31,73 @@ EEG_BANDS = {
 FIXED_RHYTHM_ORDER = ['Gamma', 'Beta', 'Alpha', 'Theta', 'Delta']
 # ======================================
 
-# **********************************************
-# --- 필터링 로직 정의 ---
-# 필터 계수를 미리 계산합니다.
-def design_hpf(cutoff, order, fs):
-    # 하이패스 필터 설계
-    b, a = butter(order, cutoff, btype='highpass', fs=fs)
-    return b, a
-# **********************************************
-
 # HPF 계수 계산
-HPF_B, HPF_A = design_hpf(HPF_CUTOFF, HPF_ORDER, SAMPLING_RATE)
+HPF_B, HPF_A = butter(HPF_ORDER, HPF_CUTOFF, btype='highpass', fs=SAMPLING_RATE)
+# LPF 계수 계산
+LPF_B, LPF_A = butter(LPF_ORDER, LPF_CUTOFF, btype='lowpass', fs=SAMPLING_RATE)
 
 
 def preprocess_and_reference(data_chunk: np.ndarray):
     """
-    app.py에서 슬라이싱된 1분 데이터 청크를 입력받아 재참조 및 HPF 필터링을 수행합니다.
+    app.py에서 슬라이싱된 1분 데이터 청크를 입력받아 재참조 및 HPF/LPF 필터링을 수행합니다.
     """
     
     if data_chunk.ndim != 2 or data_chunk.shape[1] < 4:
         raise ValueError(f"데이터 형태가 잘못되었습니다. 4개 이상의 채널이 필요합니다. 현재 채널 수: {data_chunk.shape[1]}")
 
-    # LSL 채널 순서 (0:AF7, 1:AF8, 2:TP9, 3:TP10)를 가정
     af7_raw = data_chunk[:, 0].astype(float)
     af8_raw = data_chunk[:, 1].astype(float)
     tp9_chunk = data_chunk[:, 2].astype(float)
     tp10_chunk = data_chunk[:, 3].astype(float)
     
-    # 평균 참조 (Average Reference)
     avg_ref_chunk = (tp9_chunk + tp10_chunk) / 2.0
     
-    # 재참조된 AF7, AF8 데이터
     af7_corrected = af7_raw - avg_ref_chunk
     af8_corrected = af8_raw - avg_ref_chunk
     
-    # **********************************************
-    # --- HPF 필터링 적용 ---
-    # 신호 시작점에서의 튀는 현상을 막기 위해 lfilter_zi를 사용하여 초기 상태 설정
-    zi = lfilter_zi(HPF_B, HPF_A)
+    # --- 필터링 적용 ---
+    # 1. HPF 필터링 적용 (느린 드리프트 제거)
+    zi_hpf = lfilter_zi(HPF_B, HPF_A)
+    af7_hpf, _ = lfilter(HPF_B, HPF_A, af7_corrected, zi=zi_hpf * af7_corrected[0])
+    af8_hpf, _ = lfilter(HPF_B, HPF_A, af8_corrected, zi=zi_hpf * af8_corrected[0])
     
-    # AF7 필터링
-    af7_filtered, _ = lfilter(HPF_B, HPF_A, af7_corrected, zi=zi * af7_corrected[0])
+    # 2. LPF 필터링 적용 (고주파수 잡음 제거, 45Hz 이상 차단)
+    zi_lpf = lfilter_zi(LPF_B, LPF_A)
+    af7_filtered, _ = lfilter(LPF_B, LPF_A, af7_hpf, zi=zi_lpf * af7_hpf[0])
+    af8_filtered, _ = lfilter(LPF_B, LPF_A, af8_hpf, zi=zi_lpf * af8_hpf[0])
     
-    # AF8 필터링
-    af8_filtered, _ = lfilter(HPF_B, HPF_A, af8_corrected, zi=zi * af8_corrected[0])
-    
-    return [af7_filtered, af8_filtered] # [AF7_corrected, AF8_corrected]
-    # **********************************************
+    return [af7_filtered, af8_filtered] 
 
 
-def analyze_eeg_rhythms(data_5min_chunks: list):
-    """
-    재참조 및 HPF 필터링된 뇌파 데이터 덩어리(chunk)에 대해 뇌파 리듬 점유율을 계산합니다.
-    """
+def analyze_eeg_rhythms(data_chunk: list):
+    # (내용은 변경 없음, 상위 상수 및 필터만 변경됨)
     all_results = {}
     
-    for i, data in enumerate(data_5min_chunks): 
+    for i, data in enumerate(data_chunk): 
         channel_name = ANALYSIS_CHANNEL_NAMES[i]
         
-        # 데이터 유효성 검사 (길이 대신 0인지만 확인)
         if np.all(data == 0):
             all_results[channel_name] = {"Error": "Invalid or Low Power Data"}
             continue
 
-        n = BUFFER_LENGTH # 15360 샘플
-        # 1. 윈도우 함수 적용 (Hanning)
+        n = BUFFER_LENGTH 
         fft_data = np.fft.rfft(data * np.hanning(n)) 
-        
-        # 2. PSD 계산 (Power Spectral Density)
         psd = np.abs(fft_data)**2
         freqs = np.fft.rfftfreq(n, 1.0/SAMPLING_RATE)
         
         absolute_band_powers = {}
-        
-        # 3. 각 밴드의 절대 파워 합산
         for band_name, (low, high) in EEG_BANDS.items():
             idx_band = np.logical_and(freqs >= low, freqs <= high)
             absolute_band_powers[band_name] = np.sum(psd[idx_band])
 
         total_power_in_bands = sum(absolute_band_powers.values())
         
-        if total_power_in_bands < 1e-12: # 총 파워가 너무 작으면 Low Power 처리
+        if total_power_in_bands < 1e-12: 
              all_results[channel_name] = {"Error": "Total Power too Low"}
              continue
              
         channel_rhythm_map = {}
         
-        # 4. 상대적 점유율 (Relative Power) 계산
         for band_name in FIXED_RHYTHM_ORDER:
             absolute_power = absolute_band_powers.get(band_name, 0)
             relative_power = (absolute_power / total_power_in_bands) * 100
@@ -123,5 +106,3 @@ def analyze_eeg_rhythms(data_5min_chunks: list):
         all_results[channel_name] = channel_rhythm_map
         
     return all_results
-
-
