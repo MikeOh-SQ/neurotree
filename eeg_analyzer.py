@@ -10,6 +10,13 @@ ANALYSIS_CHANNEL_NAMES = ['AF7 (L)', 'AF8 (R)']
 SKIP_SECONDS = 15 # app.py에서 사용되지만, 여기에도 정의하여 일관성 유지
 START_INDEX = SKIP_SECONDS * SAMPLING_RATE
 
+# **********************************************
+# --- 필터링 상수 추가 ---
+# 0.5Hz 하이패스 필터를 적용하여 DC 오프셋 및 느린 드리프트 제거
+HPF_CUTOFF = 0.5
+HPF_ORDER = 4
+# **********************************************
+
 # 분석할 뇌파 밴드 정의 (주파수 범위)
 EEG_BANDS = {
     'Delta': (1, 4),
@@ -21,12 +28,22 @@ EEG_BANDS = {
 FIXED_RHYTHM_ORDER = ['Gamma', 'Beta', 'Alpha', 'Theta', 'Delta']
 # ======================================
 
+# **********************************************
+# --- 필터링 로직 정의 ---
+# 필터 계수를 미리 계산합니다.
+def design_hpf(cutoff, order, fs):
+    # 하이패스 필터 설계
+    b, a = butter(order, cutoff, btype='highpass', fs=fs)
+    return b, a
+# **********************************************
+
+# HPF 계수 계산
+HPF_B, HPF_A = design_hpf(HPF_CUTOFF, HPF_ORDER, SAMPLING_RATE)
+
+
 def preprocess_and_reference(data_chunk: np.ndarray):
     """
-    app.py에서 슬라이싱된 1분 데이터 청크를 입력받아 재참조를 수행합니다.
-    (길이 체크는 app.py가 담당하므로 여기서 제거합니다.)
-    
-    data_chunk: 4채널 (AF7, AF8, TP9, TP10)의 1분 길이 Numpy 배열.
+    app.py에서 슬라이싱된 1분 데이터 청크를 입력받아 재참조 및 HPF 필터링을 수행합니다.
     """
     
     if data_chunk.ndim != 2 or data_chunk.shape[1] < 4:
@@ -45,13 +62,24 @@ def preprocess_and_reference(data_chunk: np.ndarray):
     af7_corrected = af7_raw - avg_ref_chunk
     af8_corrected = af8_raw - avg_ref_chunk
     
-    return [af7_corrected, af8_corrected] # [AF7_corrected, AF8_corrected]
+    # **********************************************
+    # --- HPF 필터링 적용 ---
+    # 신호 시작점에서의 튀는 현상을 막기 위해 lfilter_zi를 사용하여 초기 상태 설정
+    zi = lfilter_zi(HPF_B, HPF_A)
+    
+    # AF7 필터링
+    af7_filtered, _ = lfilter(HPF_B, HPF_A, af7_corrected, zi=zi * af7_corrected[0])
+    
+    # AF8 필터링
+    af8_filtered, _ = lfilter(HPF_B, HPF_A, af8_corrected, zi=zi * af8_corrected[0])
+    
+    return [af7_filtered, af8_filtered] # [AF7_corrected, AF8_corrected]
+    # **********************************************
 
 
 def analyze_eeg_rhythms(data_5min_chunks: list):
     """
-    재참조된 뇌파 데이터 덩어리(chunk)에 대해 뇌파 리듬 점유율을 계산합니다.
-    (여전히 BUFFER_LENGTH 상수를 내부적으로 사용하므로, 이 파일에서 BUFFER_LENGTH가 1분 길이로 수정되어야 합니다.)
+    재참조 및 HPF 필터링된 뇌파 데이터 덩어리(chunk)에 대해 뇌파 리듬 점유율을 계산합니다.
     """
     all_results = {}
     
