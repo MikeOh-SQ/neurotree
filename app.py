@@ -29,7 +29,7 @@ st.markdown(f"EEG 원시 데이터를 업로드하여 **앞 15초를 제외한 1
 # =========================================================
 st.subheader("샘플 파일 사용")
 
-SAMPLE_CSV_URL = "https://raw.githubusercontent.com/YOUR_GITHUB_USER/YOUR_REPO/main/sample.csv" 
+SAMPLE_CSV_URL = "https://raw.githubusercontent.com/MikeOh-SQ/neurotree/blob/main/sample.csv" 
 
 col_download, col_apply = st.columns([1, 1])
 
@@ -203,3 +203,4 @@ if st.session_state.get('ready_to_analyze', False) or st.session_state.get('use_
         st.session_state['use_sample'] = False
         st.session_state['ready_to_analyze'] = False
         st.experimental_rerun()
+
