@@ -179,17 +179,17 @@ if st.session_state.get('ready_to_analyze', False) and file_to_analyze is not No
         af7_alpha = rhythm_results.get(ANALYSIS_CHANNEL_NAMES[0], {}).get('Alpha', 0)
         
         # 뇌파 값에 따른 설명 및 시각화 매핑
-        st.header("트리 생성 결과")
+#        st.header("트리 생성 결과")
         
-        if af7_alpha > 15:
-            tree_emoji = "🌟🎄🌟"
-            tree_message = f"**높은 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 집중 상태가 양호합니다! 트리가 밝게 빛납니다."
-        elif af7_alpha < 8:
-            tree_emoji = "🕯️🎄🕯️"
-            tree_message = f"**낮은 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 트리가 약간 흐릿하고 어둡습니다."
-        else:
-            tree_emoji = "✨🎄✨"
-            tree_message = f"**평균 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 트리가 적당히 빛나고 있습니다."
+#        if af7_alpha > 15:
+#            tree_emoji = "🌟🎄🌟"
+#            tree_message = f"**높은 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 집중 상태가 양호합니다! 트리가 밝게 빛납니다."
+#        elif af7_alpha < 8:
+#            tree_emoji = "🕯️🎄🕯️"
+#            tree_message = f"**낮은 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 트리가 약간 흐릿하고 어둡습니다."
+#        else:
+#            tree_emoji = "✨🎄✨"
+#            tree_message = f"**평균 알파($\text{{Alpha}}$ {af7_alpha:.1f}%)**: 트리가 적당히 빛나고 있습니다."
 
         # 💡 Streamlit의 Markdown과 이모티콘으로 시각화
         st.markdown(f"## {tree_emoji}")
@@ -217,3 +217,4 @@ if st.session_state.get('ready_to_analyze', False) or st.session_state.get('use_
         st.session_state['use_sample'] = False
         st.session_state['ready_to_analyze'] = False
         st.rerun()
+
