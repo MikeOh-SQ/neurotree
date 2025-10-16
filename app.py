@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import io 
+import io
 import requests # GitHub 파일 다운로드 및 요청을 위해 requests 모듈 추가
 from scipy.signal import butter, lfilter
 
@@ -273,3 +273,4 @@ if st.session_state.get('ready_to_analyze', False) or st.session_state.get('use_
         st.session_state['use_sample'] = False
         st.session_state['ready_to_analyze'] = False
         st.rerun()
+
